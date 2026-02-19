@@ -98,6 +98,8 @@
     overflow-x: auto;
     border: 1px solid var(--border);
     border-radius: 8px;
+    overflow-y: visible;
+    position: relative;
   }
   table {
     border-collapse: collapse;
@@ -106,9 +108,7 @@
     white-space: nowrap;
   }
   thead th {
-    position: sticky;
-    top: 0;
-    z-index: 2;
+    position: relative;
   }
   /* Group header row */
   tr.group-header th {
@@ -163,14 +163,9 @@
   td.dap { color: var(--accent); }
   td.neutral { color: var(--text); }
 
-  /* Tooltip */
-  [data-tooltip] { position: relative; }
-  [data-tooltip]:hover::after {
-    content: attr(data-tooltip);
-    position: absolute;
-    bottom: calc(100% + 6px);
-    left: 50%;
-    transform: translateX(-50%);
+  /* Tooltip (JS-driven, appended to body) */
+  #tooltip {
+    position: fixed;
     background: #222;
     color: #eee;
     padding: 6px 10px;
@@ -179,23 +174,16 @@
     font-weight: 400;
     white-space: normal;
     width: max-content;
-    max-width: 240px;
-    z-index: 10;
+    max-width: 260px;
+    z-index: 99999;
     pointer-events: none;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.7);
     line-height: 1.4;
     text-align: left;
+    display: none;
   }
-  [data-tooltip]:hover::before {
-    content: '';
-    position: absolute;
-    bottom: calc(100% + 2px);
-    left: 50%;
-    transform: translateX(-50%);
-    border: 5px solid transparent;
-    border-top-color: #222;
-    z-index: 10;
-  }
+  #tooltip.visible { display: block; }
+  [data-tooltip] { cursor: help; }
 
   /* Footer */
   .footer {
@@ -222,8 +210,27 @@
   </table>
 </div>
 <div class="footer" id="footer"></div>
+<div id="tooltip"></div>
 
 <script>
+// ── Tooltip (body-level, escapes overflow clipping) ──
+const tooltipEl = document.getElementById('tooltip');
+document.addEventListener('mouseover', e => {
+  const target = e.target.closest('[data-tooltip]');
+  if (!target) { tooltipEl.classList.remove('visible'); return; }
+  tooltipEl.textContent = target.getAttribute('data-tooltip');
+  tooltipEl.classList.add('visible');
+  const rect = target.getBoundingClientRect();
+  const tt = tooltipEl.getBoundingClientRect();
+  let left = rect.left + rect.width / 2 - tt.width / 2;
+  left = Math.max(4, Math.min(left, window.innerWidth - tt.width - 4));
+  tooltipEl.style.left = left + 'px';
+  tooltipEl.style.top = (rect.top - tt.height - 6) + 'px';
+});
+document.addEventListener('mouseout', e => {
+  if (e.target.closest('[data-tooltip]')) tooltipEl.classList.remove('visible');
+});
+
 // ── Issuance schedule (Ref 1710) ──
 const ISSUANCE_STEPS = [
   [2026, 55617170], [2028, 41000978], [2030, 30225921], [2032, 22282549],
@@ -266,32 +273,32 @@ const PARAMS = [
 // ── Column definitions with tooltips ──
 const COLUMNS = [
   // Group: ""
-  { group: '',           header: 'Yr',      key: 'yr',              tooltip: 'Simulation year (0-indexed from 2026)',                     cls: 'yr' },
-  { group: '',           header: 'Cal',     key: 'cal',             tooltip: 'Calendar year',                                             cls: 'cal' },
+  { group: '',                  header: 'Year',           key: 'yr',              tooltip: 'Simulation year (0-indexed from 2026)',                     cls: 'yr' },
+  { group: '',                  header: 'Calendar',       key: 'cal',             tooltip: 'Calendar year',                                             cls: 'cal' },
   // Group: Validator Budget
-  { group: 'Val Budget', header: 'DOT/y',   key: 'val_budget_dot',  tooltip: 'Total annual DOT budget for all validators',                cls: 'dot' },
-  { group: 'Val Budget', header: '$/y',     key: 'val_stable_usd',  tooltip: 'Total annual stablecoin payout for all validators',         cls: 'usd' },
-  // Group: One Validator
-  { group: 'One Val',    header: 'Staked',  key: 'val_staked',      tooltip: 'Min validator self-stake (DOT) used for APY calculation',   cls: 'neutral' },
-  { group: 'One Val',    header: 'DOT/y',   key: 'per_val_dot_yr',  tooltip: 'DOT reward per validator per year',                         cls: 'dot' },
-  { group: 'One Val',    header: 'DOT/m',   key: 'per_val_dot_mo',  tooltip: 'DOT reward per validator per month',                        cls: 'dot' },
-  { group: 'One Val',    header: '$/y',     key: 'val_usd_yr',      tooltip: 'Stablecoin payout per validator per year',                  cls: 'usd' },
-  { group: 'One Val',    header: '$/m',     key: 'val_usd_mo',      tooltip: 'Stablecoin payout per validator per month',                 cls: 'usd' },
-  { group: 'One Val',    header: 'APY',     key: 'val_apy',         tooltip: 'Validator APY = (DOT reward / min self-stake) * 100',       cls: 'pct' },
+  { group: 'Validator Budget',  header: 'DOT / Year',     key: 'val_budget_dot',  tooltip: 'Total annual DOT budget for all validators',                cls: 'dot' },
+  { group: 'Validator Budget',  header: 'Stable / Year',  key: 'val_stable_usd',  tooltip: 'Total annual stablecoin payout for all validators',         cls: 'usd' },
+  // Group: Per Validator
+  { group: 'Per Validator',     header: 'Self-Stake',     key: 'val_staked',      tooltip: 'Min validator self-stake (DOT) used for APY calculation',   cls: 'neutral' },
+  { group: 'Per Validator',     header: 'DOT / Year',     key: 'per_val_dot_yr',  tooltip: 'DOT reward per validator per year',                         cls: 'dot' },
+  { group: 'Per Validator',     header: 'DOT / Month',    key: 'per_val_dot_mo',  tooltip: 'DOT reward per validator per month',                        cls: 'dot' },
+  { group: 'Per Validator',     header: 'Stable / Year',  key: 'val_usd_yr',      tooltip: 'Stablecoin payout per validator per year',                  cls: 'usd' },
+  { group: 'Per Validator',     header: 'Stable / Month', key: 'val_usd_mo',      tooltip: 'Stablecoin payout per validator per month',                 cls: 'usd' },
+  { group: 'Per Validator',     header: 'APY',            key: 'val_apy',         tooltip: 'Validator APY = (DOT reward / min self-stake) * 100',       cls: 'pct' },
   // Group: Nominator Budget
-  { group: 'Nom Budget', header: 'DOT/y',   key: 'nom_budget_dot',  tooltip: 'Total annual DOT budget for all nominators',                cls: 'dot' },
-  // Group: One Nominator
-  { group: 'One Nom',    header: 'Staked',  key: 'nom_staked',      tooltip: 'Average nominator stake = (total staked - val stakes) / nominators', cls: 'neutral' },
-  { group: 'One Nom',    header: 'DOT/y',   key: 'per_nom_dot_yr',  tooltip: 'DOT reward per nominator per year',                         cls: 'dot' },
-  { group: 'One Nom',    header: 'DOT/m',   key: 'per_nom_dot_mo',  tooltip: 'DOT reward per nominator per month',                        cls: 'dot' },
-  { group: 'One Nom',    header: 'APY',     key: 'nom_apy',         tooltip: 'Nominator APY = (DOT reward / avg stake) * 100',            cls: 'pct' },
-  // Group: DAP
-  { group: 'DAP',        header: 'Supply',  key: 'total_supply',    tooltip: 'Total DOT supply at end of year',                           cls: 'neutral' },
-  { group: 'DAP',        header: 'Inflow',  key: 'dap_inflow',      tooltip: 'DOT flowing into DAP this year (= total annual issuance)',  cls: 'dot' },
-  { group: 'DAP',        header: 'Out/Sec', key: 'out_security',    tooltip: 'DOT flowing out for security (validators + nominators)',     cls: 'dot' },
-  { group: 'DAP',        header: 'Out/$',   key: 'out_stable_usd',  tooltip: 'USD value of stable payouts needed this year',              cls: 'usd' },
-  { group: 'DAP',        header: 'Out/Stb', key: 'out_stable_dot',  tooltip: 'DOT used to fund stable payouts (sold or locked)',          cls: 'dot' },
-  { group: 'DAP',        header: 'Balance', key: 'dap_balance',     tooltip: 'Cumulative DAP DOT balance',                                cls: 'dap' },
+  { group: 'Nominator Budget',  header: 'DOT / Year',     key: 'nom_budget_dot',  tooltip: 'Total annual DOT budget for all nominators',                cls: 'dot' },
+  // Group: Per Nominator
+  { group: 'Per Nominator',     header: 'Avg Stake',      key: 'nom_staked',      tooltip: 'Average nominator stake = (total staked - val stakes) / nominators', cls: 'neutral' },
+  { group: 'Per Nominator',     header: 'DOT / Year',     key: 'per_nom_dot_yr',  tooltip: 'DOT reward per nominator per year',                         cls: 'dot' },
+  { group: 'Per Nominator',     header: 'DOT / Month',    key: 'per_nom_dot_mo',  tooltip: 'DOT reward per nominator per month',                        cls: 'dot' },
+  { group: 'Per Nominator',     header: 'APY',            key: 'nom_apy',         tooltip: 'Nominator APY = (DOT reward / avg stake) * 100',            cls: 'pct' },
+  // Group: DAP Pool
+  { group: 'DAP Pool',          header: 'Total Supply',   key: 'total_supply',    tooltip: 'Total DOT supply at end of year',                           cls: 'neutral' },
+  { group: 'DAP Pool',          header: 'Inflow',         key: 'dap_inflow',      tooltip: 'DOT flowing into DAP this year (= total annual issuance)',  cls: 'dot' },
+  { group: 'DAP Pool',          header: 'Out Security',   key: 'out_security',    tooltip: 'DOT flowing out for security (validators + nominators)',     cls: 'dot' },
+  { group: 'DAP Pool',          header: 'Out Stable $',   key: 'out_stable_usd',  tooltip: 'USD value of stable payouts needed this year',              cls: 'usd' },
+  { group: 'DAP Pool',          header: 'Out Stable DOT', key: 'out_stable_dot',  tooltip: 'DOT used to fund stable payouts (sold or locked)',          cls: 'dot' },
+  { group: 'DAP Pool',          header: 'Balance',        key: 'dap_balance',     tooltip: 'Cumulative DAP DOT balance',                                cls: 'dap' },
 ];
 
 // ── Build controls ──
