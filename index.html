@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Polkadot DAP Simulator</title>
+<style>
+  :root {
+    --bg: #0e0e10;
+    --surface: #1a1a1f;
+    --border: #2a2a30;
+    --text: #e0e0e0;
+    --muted: #888;
+    --accent: #e6007a;
+    --accent-dim: #e6007a33;
+    --green: #4ade80;
+    --yellow: #fbbf24;
+    --blue: #60a5fa;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 24px;
+  }
+  h1 {
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: var(--accent);
+  }
+  .subtitle {
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-bottom: 20px;
+  }
+  .subtitle a { color: var(--accent); text-decoration: none; }
+  .subtitle a:hover { text-decoration: underline; }
+
+  /* Controls */
+  .controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 20px;
+  }
+  .control {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .control label {
+    font-size: 0.7rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .control input, .control select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    padding: 6px 8px;
+    font-family: inherit;
+    font-size: 0.85rem;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .control input:focus, .control select:focus {
+    border-color: var(--accent);
+  }
+  .control input::-webkit-inner-spin-button { opacity: 1; }
+
+  /* Summary bar */
+  .summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 24px;
+    padding: 10px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 20px;
+    font-size: 0.8rem;
+  }
+  .summary span { color: var(--muted); }
+  .summary strong { color: var(--text); }
+  .summary .val { color: var(--accent); }
+
+  /* Table */
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.78rem;
+    white-space: nowrap;
+  }
+  thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+  /* Group header row */
+  tr.group-header th {
+    background: var(--accent);
+    color: #fff;
+    font-weight: 600;
+    text-align: center;
+    padding: 6px 8px;
+    border-right: 2px solid var(--bg);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  tr.group-header th.empty-group {
+    background: var(--surface);
+  }
+  /* Column header row */
+  tr.col-header th {
+    background: var(--surface);
+    color: var(--muted);
+    font-weight: 500;
+    text-align: right;
+    padding: 6px 10px;
+    border-bottom: 2px solid var(--accent-dim);
+    border-right: 1px solid var(--border);
+    cursor: help;
+    position: relative;
+  }
+  tr.col-header th:last-child { border-right: none; }
+  /* Group borders */
+  td.group-start, th.group-start {
+    border-left: 2px solid var(--border) !important;
+  }
+
+  td {
+    text-align: right;
+    padding: 5px 10px;
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid #1f1f24;
+  }
+  td:last-child { border-right: none; }
+  tr:hover td { background: #1f1f28; }
+  tr:nth-child(even) td { background: #13131a; }
+  tr:nth-child(even):hover td { background: #1f1f28; }
+
+  /* Color-coded columns */
+  td.yr { color: var(--muted); text-align: center; }
+  td.cal { color: var(--text); text-align: center; font-weight: 600; }
+  td.dot { color: var(--green); }
+  td.usd { color: var(--yellow); }
+  td.pct { color: var(--blue); }
+  td.dap { color: var(--accent); }
+  td.neutral { color: var(--text); }
+
+  /* Tooltip */
+  [data-tooltip] { position: relative; }
+  [data-tooltip]:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #222;
+    color: #eee;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    font-weight: 400;
+    white-space: normal;
+    width: max-content;
+    max-width: 240px;
+    z-index: 10;
+    pointer-events: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    line-height: 1.4;
+    text-align: left;
+  }
+  [data-tooltip]:hover::before {
+    content: '';
+    position: absolute;
+    bottom: calc(100% + 2px);
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: #222;
+    z-index: 10;
+  }
+
+  /* Footer */
+  .footer {
+    margin-top: 16px;
+    font-size: 0.7rem;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+
+<h1>Polkadot DAP Simulator</h1>
+<div class="subtitle">
+  Issuance model from <a href="https://polkadot.subsquare.io/referenda/1710" target="_blank">Ref 1710</a> &mdash;
+  Hard cap 2.1B DOT, ~26.3% decay every 2 years
+</div>
+
+<div class="controls" id="controls"></div>
+<div class="summary" id="summary"></div>
+<div class="table-wrap">
+  <table id="sim-table">
+    <thead id="thead"></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+<div class="footer" id="footer"></div>
+
+<script>
+// ── Issuance schedule (Ref 1710) ──
+const ISSUANCE_STEPS = [
+  [2026, 55617170], [2028, 41000978], [2030, 30225921], [2032, 22282549],
+  [2034, 16426695], [2036, 12109760], [2038, 8927315],  [2040, 6581216],
+  [2042, 4851673],  [2044, 3576653],  [2046, 2636709],  [2048, 1943782],
+  [2050, 1432956],  [2052, 1056375],  [2054, 778760],   [2056, 574102],
+  [2058, 423228],   [2060, 312003],
+];
+const START_YEAR = 2026;
+const MAX_YEARS = (ISSUANCE_STEPS[ISSUANCE_STEPS.length - 1][0] - START_YEAR) + 2;
+
+function getAnnualIssuance(simYear) {
+  const calYear = START_YEAR + simYear;
+  let result = 0;
+  for (const [stepYear, annual] of ISSUANCE_STEPS) {
+    if (calYear >= stepYear) result = annual;
+    else break;
+  }
+  return result;
+}
+
+// ── Parameter definitions ──
+const PARAMS = [
+  { key: 'years',            label: 'Simulation Years',           type: 'int',   default: 10,            min: 1, max: MAX_YEARS },
+  { key: 'pct_val',          label: '% Issuance → Validators',    type: 'float', default: 5,             min: 0, max: 100, step: 0.5 },
+  { key: 'pct_nom',          label: '% Issuance → Nominators',    type: 'float', default: 35,            min: 0, max: 100, step: 0.5 },
+  { key: 'validators',       label: 'Validator Count',            type: 'int',   default: 300,           min: 1, max: 10000 },
+  { key: 'nominators',       label: 'Nominator Count',            type: 'int',   default: 22000,         min: 1, max: 1000000 },
+  { key: 'dot_price',        label: 'DOT Price (USD)',            type: 'float', default: 1.50,          min: 0.01, max: 10000, step: 0.01 },
+  { key: 'min_val_stake',    label: 'Min Validator Stake (DOT)',  type: 'float', default: 10000,         min: 0, step: 1000 },
+  { key: 'staking_rate',     label: 'Staking Rate (%)',           type: 'float', default: 50,            min: 0, max: 100, step: 1 },
+  { key: 'initial_supply',   label: 'Initial Supply (DOT)',       type: 'float', default: 1540000000,    min: 0, step: 1000000 },
+  { key: 'val_stable_monthly', label: 'Val Stable Payout ($/mo)', type: 'float', default: 3000,          min: 0, step: 100 },
+  { key: 'stable_mode',      label: 'Stable Mode',                type: 'select', default: 'sell', options: ['sell', 'mint'] },
+  { key: 'overcollat_ratio', label: 'Over-collat Ratio',          type: 'float', default: 1.5,           min: 1, max: 5, step: 0.1 },
+  { key: 'init_dap_dot',     label: 'Initial DAP DOT',           type: 'float', default: 20000000,      min: 0, step: 1000000 },
+  { key: 'init_dap_stable',  label: 'Initial DAP Stable ($)',    type: 'float', default: 10000000,      min: 0, step: 1000000 },
+];
+
+// ── Column definitions with tooltips ──
+const COLUMNS = [
+  // Group: ""
+  { group: '',           header: 'Yr',      key: 'yr',              tooltip: 'Simulation year (0-indexed from 2026)',                     cls: 'yr' },
+  { group: '',           header: 'Cal',     key: 'cal',             tooltip: 'Calendar year',                                             cls: 'cal' },
+  // Group: Validator Budget
+  { group: 'Val Budget', header: 'DOT/y',   key: 'val_budget_dot',  tooltip: 'Total annual DOT budget for all validators',                cls: 'dot' },
+  { group: 'Val Budget', header: '$/y',     key: 'val_stable_usd',  tooltip: 'Total annual stablecoin payout for all validators',         cls: 'usd' },
+  // Group: One Validator
+  { group: 'One Val',    header: 'Staked',  key: 'val_staked',      tooltip: 'Min validator self-stake (DOT) used for APY calculation',   cls: 'neutral' },
+  { group: 'One Val',    header: 'DOT/y',   key: 'per_val_dot_yr',  tooltip: 'DOT reward per validator per year',                         cls: 'dot' },
+  { group: 'One Val',    header: 'DOT/m',   key: 'per_val_dot_mo',  tooltip: 'DOT reward per validator per month',                        cls: 'dot' },
+  { group: 'One Val',    header: '$/y',     key: 'val_usd_yr',      tooltip: 'Stablecoin payout per validator per year',                  cls: 'usd' },
+  { group: 'One Val',    header: '$/m',     key: 'val_usd_mo',      tooltip: 'Stablecoin payout per validator per month',                 cls: 'usd' },
+  { group: 'One Val',    header: 'APY',     key: 'val_apy',         tooltip: 'Validator APY = (DOT reward / min self-stake) * 100',       cls: 'pct' },
+  // Group: Nominator Budget
+  { group: 'Nom Budget', header: 'DOT/y',   key: 'nom_budget_dot',  tooltip: 'Total annual DOT budget for all nominators',                cls: 'dot' },
+  // Group: One Nominator
+  { group: 'One Nom',    header: 'Staked',  key: 'nom_staked',      tooltip: 'Average nominator stake = (total staked - val stakes) / nominators', cls: 'neutral' },
+  { group: 'One Nom',    header: 'DOT/y',   key: 'per_nom_dot_yr',  tooltip: 'DOT reward per nominator per year',                         cls: 'dot' },
+  { group: 'One Nom',    header: 'DOT/m',   key: 'per_nom_dot_mo',  tooltip: 'DOT reward per nominator per month',                        cls: 'dot' },
+  { group: 'One Nom',    header: 'APY',     key: 'nom_apy',         tooltip: 'Nominator APY = (DOT reward / avg stake) * 100',            cls: 'pct' },
+  // Group: DAP
+  { group: 'DAP',        header: 'Supply',  key: 'total_supply',    tooltip: 'Total DOT supply at end of year',                           cls: 'neutral' },
+  { group: 'DAP',        header: 'Inflow',  key: 'dap_inflow',      tooltip: 'DOT flowing into DAP this year (= total annual issuance)',  cls: 'dot' },
+  { group: 'DAP',        header: 'Out/Sec', key: 'out_security',    tooltip: 'DOT flowing out for security (validators + nominators)',     cls: 'dot' },
+  { group: 'DAP',        header: 'Out/$',   key: 'out_stable_usd',  tooltip: 'USD value of stable payouts needed this year',              cls: 'usd' },
+  { group: 'DAP',        header: 'Out/Stb', key: 'out_stable_dot',  tooltip: 'DOT used to fund stable payouts (sold or locked)',          cls: 'dot' },
+  { group: 'DAP',        header: 'Balance', key: 'dap_balance',     tooltip: 'Cumulative DAP DOT balance',                                cls: 'dap' },
+];
+
+// ── Build controls ──
+const controlsEl = document.getElementById('controls');
+const inputs = {};
+
+for (const p of PARAMS) {
+  const div = document.createElement('div');
+  div.className = 'control';
+  const lbl = document.createElement('label');
+  lbl.textContent = p.label;
+  div.appendChild(lbl);
+
+  let inp;
+  if (p.type === 'select') {
+    inp = document.createElement('select');
+    for (const opt of p.options) {
+      const o = document.createElement('option');
+      o.value = opt; o.textContent = opt;
+      inp.appendChild(o);
+    }
+    inp.value = p.default;
+  } else {
+    inp = document.createElement('input');
+    inp.type = 'number';
+    inp.value = p.default;
+    if (p.min !== undefined) inp.min = p.min;
+    if (p.max !== undefined) inp.max = p.max;
+    if (p.step !== undefined) inp.step = p.step;
+  }
+  inp.addEventListener('input', render);
+  inp.addEventListener('change', render);
+  inputs[p.key] = inp;
+  div.appendChild(inp);
+  controlsEl.appendChild(div);
+}
+
+function getConfig() {
+  const cfg = {};
+  for (const p of PARAMS) {
+    const raw = inputs[p.key].value;
+    if (p.type === 'int') cfg[p.key] = parseInt(raw, 10) || 0;
+    else if (p.type === 'float') cfg[p.key] = parseFloat(raw) || 0;
+    else cfg[p.key] = raw;
+  }
+  return cfg;
+}
+
+// ── Formatting helpers ──
+function fmtM(v) { return (v / 1e6).toFixed(2) + 'M'; }
+function fmtB(v) { return (v / 1e9).toFixed(2) + 'B'; }
+function fmtD(v) { return v.toLocaleString('en-US', { maximumFractionDigits: 0 }); }
+function fmtUsd(v) { return '$' + v.toLocaleString('en-US', { maximumFractionDigits: 0 }); }
+function fmtPct(v) { return v.toFixed(1) + '%'; }
+function fmtUsdM(v) { return '$' + (v / 1e6).toFixed(1) + 'M'; }
+
+// ── Build table header (once) ──
+function buildHeader() {
+  const thead = document.getElementById('thead');
+  thead.innerHTML = '';
+
+  // Group header row
+  const gr = document.createElement('tr');
+  gr.className = 'group-header';
+  const groups = [];
+  let lastGroup = null;
+  for (const col of COLUMNS) {
+    if (col.group !== lastGroup) {
+      groups.push({ name: col.group, span: 1 });
+      lastGroup = col.group;
+    } else {
+      groups[groups.length - 1].span++;
+    }
+  }
+  for (const g of groups) {
+    const th = document.createElement('th');
+    th.colSpan = g.span;
+    th.textContent = g.name;
+    if (!g.name) th.className = 'empty-group';
+    gr.appendChild(th);
+  }
+  thead.appendChild(gr);
+
+  // Column header row
+  const cr = document.createElement('tr');
+  cr.className = 'col-header';
+  let prevGroup = null;
+  for (const col of COLUMNS) {
+    const th = document.createElement('th');
+    th.textContent = col.header;
+    th.setAttribute('data-tooltip', col.tooltip);
+    if (col.group !== prevGroup) {
+      th.classList.add('group-start');
+      prevGroup = col.group;
+    }
+    cr.appendChild(th);
+  }
+  thead.appendChild(cr);
+}
+
+// ── Simulation + render ──
+function simulate(cfg) {
+  const numYears = Math.min(cfg.years, MAX_YEARS);
+  const pv = cfg.pct_val;
+  const pn = cfg.pct_nom;
+  const nval = cfg.validators;
+  const nnom = cfg.nominators;
+  const price = cfg.dot_price;
+  const minValStake = cfg.min_val_stake;
+  const stakingRate = cfg.staking_rate;
+  let totalSupply = cfg.initial_supply;
+  const valStableMo = cfg.val_stable_monthly;
+  const stableMode = cfg.stable_mode;
+  const overcollat = cfg.overcollat_ratio;
+
+  const stableAnnualUsd = valStableMo * 12 * nval;
+  let dapDot = cfg.init_dap_dot;
+  let dapStable = cfg.init_dap_stable;
+
+  const rows = [];
+  for (let yr = 0; yr < numYears; yr++) {
+    const ann = getAnnualIssuance(yr);
+    const cal = START_YEAR + yr;
+
+    const valBudgetDot = ann * pv / 100;
+    const nomBudgetDot = ann * pn / 100;
+
+    const dapInflow = ann;
+    const outDotSecurity = valBudgetDot + nomBudgetDot;
+
+    const stableNeed = stableAnnualUsd;
+    const fromStable = Math.min(dapStable, stableNeed);
+    dapStable -= fromStable;
+    const remainingUsd = stableNeed - fromStable;
+
+    let outDotStable = 0;
+    if (remainingUsd > 0 && price > 0) {
+      outDotStable = stableMode === 'mint'
+        ? (remainingUsd / price) * overcollat
+        : remainingUsd / price;
+    }
+
+    dapDot += dapInflow - outDotSecurity - outDotStable;
+    totalSupply += ann;
+    const totalStaked = totalSupply * stakingRate / 100;
+
+    const perValDotYr = nval ? valBudgetDot / nval : 0;
+    const perValDotMo = perValDotYr / 12;
+    const valStableYr = valStableMo * 12;
+    const valApy = minValStake ? (perValDotYr / minValStake * 100) : 0;
+
+    const nomStakePool = totalStaked - (nval * minValStake);
+    const avgNomStake = (nnom && nomStakePool > 0) ? nomStakePool / nnom : 0;
+    const perNomDotYr = nnom ? nomBudgetDot / nnom : 0;
+    const perNomDotMo = perNomDotYr / 12;
+    const nomApy = avgNomStake > 0 ? (perNomDotYr / avgNomStake * 100) : 0;
+
+    rows.push({
+      yr, cal,
+      val_budget_dot: fmtM(valBudgetDot),
+      val_stable_usd: fmtUsdM(stableAnnualUsd),
+      val_staked: fmtD(minValStake),
+      per_val_dot_yr: fmtD(perValDotYr),
+      per_val_dot_mo: fmtD(perValDotMo),
+      val_usd_yr: fmtUsd(valStableYr),
+      val_usd_mo: fmtUsd(valStableMo),
+      val_apy: fmtPct(valApy),
+      nom_budget_dot: fmtM(nomBudgetDot),
+      nom_staked: fmtD(avgNomStake),
+      per_nom_dot_yr: fmtD(perNomDotYr),
+      per_nom_dot_mo: fmtD(perNomDotMo),
+      nom_apy: fmtPct(nomApy),
+      total_supply: fmtB(totalSupply),
+      dap_inflow: fmtM(dapInflow),
+      out_security: fmtM(outDotSecurity),
+      out_stable_usd: fmtUsdM(stableNeed),
+      out_stable_dot: fmtM(outDotStable),
+      dap_balance: fmtM(dapDot),
+    });
+  }
+  return rows;
+}
+
+function render() {
+  const cfg = getConfig();
+
+  // Validation
+  if (cfg.pct_val + cfg.pct_nom > 100) {
+    document.getElementById('summary').innerHTML =
+      '<span style="color:#ef4444;font-weight:600;">val% + nom% exceeds 100%. Adjust the budget splits.</span>';
+    document.getElementById('tbody').innerHTML = '';
+    return;
+  }
+
+  // Summary
+  const dapPct = (100 - cfg.pct_val - cfg.pct_nom).toFixed(1);
+  document.getElementById('summary').innerHTML = `
+    <span>Budget: <strong class="val">${cfg.pct_val}%</strong> validators, <strong class="val">${cfg.pct_nom}%</strong> nominators, <strong class="val">${dapPct}%</strong> DAP buffer</span>
+    <span>Validators: <strong>${cfg.validators}</strong></span>
+    <span>Nominators: <strong>${cfg.nominators.toLocaleString()}</strong></span>
+    <span>DOT: <strong>$${cfg.dot_price.toFixed(2)}</strong></span>
+    <span>Staking: <strong>${cfg.staking_rate}%</strong></span>
+    <span>Stable mode: <strong>${cfg.stable_mode}</strong>${cfg.stable_mode === 'mint' ? ' (' + cfg.overcollat_ratio + 'x)' : ''}</span>
+  `;
+
+  // Simulate
+  const rows = simulate(cfg);
+
+  // Render rows
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+  let prevGroup = null;
+  const groupStarts = [];
+  let gp = null;
+  for (let i = 0; i < COLUMNS.length; i++) {
+    if (COLUMNS[i].group !== gp) { groupStarts.push(i); gp = COLUMNS[i].group; }
+  }
+
+  for (const row of rows) {
+    const tr = document.createElement('tr');
+    for (let i = 0; i < COLUMNS.length; i++) {
+      const col = COLUMNS[i];
+      const td = document.createElement('td');
+      td.className = col.cls;
+      if (groupStarts.includes(i)) td.classList.add('group-start');
+      td.textContent = row[col.key];
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+
+  // Footer
+  document.getElementById('footer').textContent =
+    `Showing ${rows.length} years (${START_YEAR}–${START_YEAR + rows.length - 1}). Max: ${MAX_YEARS} years.`;
+}
+
+// ── Init ──
+buildHeader();
+render();
+</script>
+</body>
+</html>
