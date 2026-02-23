@@ -160,7 +160,12 @@
   td.dot { color: var(--green); }
   td.usd { color: var(--yellow); }
   td.pct { color: var(--blue); }
-  td.dap { color: var(--accent); }
+  td.dap-in { color: var(--green); }
+  td.dap-out-dot { color: #ef4444; }
+  td.dap-out-usd { color: #fb923c; }
+  td.dap-pos { color: var(--green); }
+  td.dap-neg { color: #ef4444; }
+  td.dap-bal { color: var(--text); }
   td.neutral { color: var(--text); }
 
   /* Tooltip (JS-driven, appended to body) */
@@ -396,11 +401,12 @@ const COLUMNS = [
   { group: 'Per Nominator',     header: 'APR',            key: 'nom_apy',         tooltip: 'Nominator APR = (DOT reward / avg stake) * 100',            cls: 'pct' },
   // Group: DAP Pool
   { group: 'DAP Pool',          header: 'Total Supply',   key: 'total_supply',    tooltip: 'Total DOT supply at end of year',                           cls: 'neutral' },
-  { group: 'DAP Pool',          header: 'Inflow',         key: 'dap_inflow',      tooltip: 'DOT flowing into DAP this year (= total annual issuance)',  cls: 'dot' },
-  { group: 'DAP Pool',          header: 'Out Security',   key: 'out_security',    tooltip: 'DOT flowing out for security (validators + nominators)',     cls: 'dot' },
-  { group: 'DAP Pool',          header: 'Out Stable $',   key: 'out_stable_usd',  tooltip: 'USD value of stable payouts needed this year',              cls: 'usd' },
-  { group: 'DAP Pool',          header: 'Out Stable DOT', key: 'out_stable_dot',  tooltip: 'DOT used to fund stable payouts (sold or locked)',          cls: 'dot' },
-  { group: 'DAP Pool',          header: 'Balance',        key: 'dap_balance',     tooltip: 'Cumulative DAP DOT balance',                                cls: 'dap' },
+  { group: 'DAP Pool',          header: 'Inflow',         key: 'dap_inflow',      tooltip: 'DOT flowing into DAP this year (= total annual issuance)',  cls: 'dap-in' },
+  { group: 'DAP Pool',          header: 'Out Security',   key: 'out_security',    tooltip: 'DOT flowing out for security (validators + nominators)',     cls: 'dap-out-dot' },
+  { group: 'DAP Pool',          header: 'Out Stable $',   key: 'out_stable_usd',  tooltip: 'USD value of stable payouts needed this year',              cls: 'dap-out-usd' },
+  { group: 'DAP Pool',          header: 'Out Stable DOT', key: 'out_stable_dot',  tooltip: 'DOT used to fund stable payouts (sold or locked)',          cls: 'dap-out-dot' },
+  { group: 'DAP Pool',          header: 'Net Change',     key: 'dap_net',         tooltip: 'DAP net change this year = inflow - security outflow - stable outflow', cls: 'dap_net' },
+  { group: 'DAP Pool',          header: 'Balance',        key: 'dap_balance',     tooltip: 'Cumulative DAP DOT balance',                                cls: 'dap-bal' },
 ];
 
 // ── Build controls ──
@@ -738,7 +744,8 @@ function simulate(cfg) {
         : remainingUsd / price;
     }
 
-    dapDot += dapInflow - outDotSecurity - outDotStable;
+    const dapNet = dapInflow - outDotSecurity - outDotStable;
+    dapDot += dapNet;
     totalSupply += ann;
     const totalStaked = totalSupply * stakingRate / 100;
 
@@ -774,6 +781,7 @@ function simulate(cfg) {
       out_stable_usd: fmtUsdM(stableNeed),
       out_stable_dot: fmtM(outDotStable),
       dap_balance: fmtM(dapDot),
+      dap_net: dapNet,
     });
   }
   return rows;
@@ -819,9 +827,15 @@ function render() {
     for (let i = 0; i < COLUMNS.length; i++) {
       const col = COLUMNS[i];
       const td = document.createElement('td');
-      td.className = col.cls;
+      if (col.cls === 'dap_net') {
+        const v = row[col.key];
+        td.className = v >= 0 ? 'dap-pos' : 'dap-neg';
+        td.textContent = (v >= 0 ? '+' : '') + fmtM(v);
+      } else {
+        td.className = col.cls;
+        td.textContent = row[col.key];
+      }
       if (groupStarts.includes(i)) td.classList.add('group-start');
-      td.textContent = row[col.key];
       tr.appendChild(td);
     }
     tbody.appendChild(tr);
